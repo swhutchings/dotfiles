@@ -1,0 +1,7 @@
+Host saturn.fossa-puffin.ts.net
+  HostName saturn.fossa-puffin.ts.net
+  User shutchings
+
+Host docker-saturn.fossa-puffin.ts.net
+  HostName docker-saturn.fossa-puffin.ts.net
+  User ubuntu
