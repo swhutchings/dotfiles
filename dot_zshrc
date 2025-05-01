@@ -1,0 +1,247 @@
+# ============================================================================
+# Initialization
+# ============================================================================
+
+# Additional zsh config files directory
+ZSH_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+
+# By default zcompdump is created in the home directory, so we will create a
+# directory for the zsh cache in a separate directory to clean things up a
+# little bit.
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+
+# Creates the cache directory if doesn't exist, as compinit will fail if it
+# doesn't find the directory in which .zcompdump is specified to be located.
+[[ ! -d "$CACHE_DIR" ]] && mkdir -p "$CACHE_DIR"
+
+# Disable autosuggestions and exa in Linux tty and replace prompt character.
+if [[ "$TERM" == "linux" ]]; then
+    DISABLE_AUTOSUGGESTIONS=true
+    DISABLE_EXA=true
+    DISABLE_STARSHIP=true
+fi
+
+# ============================================================================
+# zsh-defer
+# ============================================================================
+source $CACHE_DIR/plugins/zsh-defer/zsh-defer.plugin.zsh
+
+# ============================================================================
+# Hook - Before Config
+# ============================================================================
+
+[[ -f "$ZSH_CONFIG_DIR/before.zsh" ]] && . "$ZSH_CONFIG_DIR/before.zsh"
+
+# ============================================================================
+# Prompt (Starship or fallback)
+# ============================================================================
+
+# Check for Starship or DISABLE_STARSHIP flag, use fallback if disabled
+if [[ "$DISABLE_STARSHIP" != true && -x "$(command -v starship)" ]]; then
+    eval "$(starship init zsh)"
+else
+    PS1='%B%F{green}%n@%m%f%b:%B%F{blue}%~%f%b%# '
+fi
+
+## COMPLETIONS ================================================================
+# Changes the zcompdump directory. The .zcompdump file is used to improve
+# compinit's initialization time.
+ZCOMPDUMP_PATH="$CACHE_DIR/.zcompdump"
+
+# Initializes completion system. Relevant documentation:
+# https://zsh.sourceforge.io/Doc/Release/Completion-System.html#Use-of-compinit.
+autoload -Uz compinit && compinit -d $ZCOMPDUMP_PATH
+
+# Compiles the .zcompdump to load it faster next time.
+# Search for zcompile in https://zsh.sourceforge.io/Doc/Release/Shell-Builtin-Commands.html.
+[[ "$ZCOMPDUMP_PATH.zwc" -nt "$ZCOMPDUMP_PATH" ]] \
+    || zsh-defer zcompile "$ZCOMPDUMP_PATH"
+
+# Matches completion menu colors with the LS_COLORS variable.
+[[ -n $LS_COLORS ]] && zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+
+# Marks the selected item in the completion menu.
+zstyle ':completion:*:*:*:*:*' menu select
+
+# Makes the completion case-insensitive unless a uppercase is used and fuzzy.
+zstyle ':completion:*' matcher-list 'm:{[:lower:][:upper:]-_}={[:upper:][:lower:]_-}' 'r:|=*' 'l:|=* r:|=*'
+
+# Enables cache. I have not found any real use for it but theoretically it's
+# useful to improve the speed of some completions.
+zstyle ':completion:*' use-cache true
+zstyle ':completion:*' cache-path "$CACHE_DIR/.zcompcache"
+
+# Attempts to find new commands to complete.
+zstyle ':completion:*' rehash true
+
+# Specifies which characters are considered part of a word for completion
+# purposes. In this case, underscores (_) and hyphens (-) will be treated as
+# part of words, preventing the shell from splitting at these characters during
+# word completion.
+WORDCHARS='_-'
+
+## KEYBINDINGS ================================================================
+# Forces the use of emacs keyboard shortcuts. By default uses the vim ones,
+# but they are not very good by default and can be confusing for novice users.
+bindkey -e
+
+# These additional shortcuts only apply to emacs mode, since they have the
+# `-M emacs` flag.
+
+# [Home] - move to the beginning of the line
+bindkey "^[[H" beginning-of-line
+bindkey "^[OH" beginning-of-line
+
+# [End] - move to the end of the line
+bindkey "^[[F" end-of-line
+bindkey "^[OF" end-of-line
+
+# [Ctrl-LeftArrow] - move backward one word
+bindkey -M emacs "^[[1;5D" backward-word
+
+# [Ctrl-RightArrow] - move forward one word
+bindkey -M emacs "^[[1;5C" forward-word
+
+# [Alt-LeftArrow] - move backward one word
+bindkey -M emacs "^[[1;3D" backward-word
+
+# [Alt-RightArrow] - move forward one word
+bindkey -M emacs "^[[1;3C" forward-word
+
+# [Shift-Tab] - move through the completion menu backwards
+bindkey -M emacs "^[[Z" reverse-menu-complete
+
+# [Delete] - delete forward
+bindkey -M emacs "^[[3~" delete-char
+
+# [Ctrl-Delete] - delete whole forward-word
+bindkey -M emacs '^[[3;5~' kill-word
+
+# Start typing + [Up-Arrow] - fuzzy find history forward
+autoload -U up-line-or-beginning-search
+zle -N up-line-or-beginning-search
+bindkey -M emacs "^[[A" up-line-or-beginning-search
+
+# Start typing + [Down-Arrow] - fuzzy find history backward
+autoload -U down-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey -M emacs "^[[B" down-line-or-beginning-search
+
+## HISTORY ====================================================================
+
+# File where the history will be saved
+HISTFILE="$HOME/.zsh_history"
+
+# How many commands are kept in memory
+HISTSIZE=1000000
+
+# How many commands are stored on disk
+SAVEHIST=1000000
+
+# HISTORY BEHAVIOR ============================================================
+
+# Append new commands to the history file (don't overwrite it on shell exit)
+setopt append_history
+
+# Immediately write each command to the history file after it's executed
+setopt inc_append_history
+
+# Share command history between all running Zsh sessions
+setopt share_history
+
+# Expire duplicate entries first when trimming history
+setopt hist_expire_dups_first
+
+# Don't record consecutive duplicate commands
+setopt hist_ignore_dups
+
+# Remove *any* duplicate command from history, not just consecutive ones
+setopt hist_ignore_all_dups
+
+# When searching history, skip duplicate matches
+setopt hist_find_no_dups
+
+# Remove superfluous spaces from recorded commands
+setopt hist_reduce_blanks
+
+# Save only unique commands into the history file
+setopt hist_save_no_dups
+
+# Record timestamps for each command
+setopt extended_history
+
+# Allow editing a recalled command line before running it
+setopt hist_verify
+
+# Ignore commands that start with a space from history
+setopt hist_ignore_space
+
+## ALIASES ====================================================================
+# ls, grep and tree doesn't have color enabled by default, so this aliases enables it.
+if [[ "$(uname)" = "Darwin" ]]; then
+    alias ls="ls -G" # MacOS
+else
+    alias ls="ls --color=auto" # GNU/Linux
+fi
+alias grep="grep --color=auto"
+[[ -n "$commands[tree]" ]] && alias lt="tree"
+
+# Useful aliases to list files.
+alias la="ls -A"
+alias ll="ls -l"
+alias lla="ls -lA"
+
+# Uses exa instead if installed and enabled.
+if [[ "$DISABLE_EXA" != true && (-n "$commands[eza]" || -n "$commands[exa]") ]]; then
+    [[ -n "$commands[eza]" && -z "$commands[exa]" ]] && alias exa="eza"
+    alias ls="exa --icons --group-directories-first"
+    alias ls="exa --icons --group-directories-first"
+    alias ll="exa --icons --group-directories-first --git -l"
+    alias la="exa --icons --group-directories-first -a"
+    alias lla="exa --icons --group-directories-first --git -la"
+    alias lt="exa --icons -T"
+fi
+
+# More secure rm, cp and mv operations.
+alias rm="rm -v"
+alias cp="cp -vi"
+alias mv="mv -vi"
+
+## OTHER ======================================================================
+# Disables highlighting of pasted text.
+zle_highlight+=(paste:none)
+
+# If a command is issued that can’t be executed as a normal command, and the
+# command is the name of a directory, perform the cd command to that directory.
+setopt autocd
+
+# Sets window title. This is ignored in kitty because it has its way to do it.
+if [[ $TERM != "xterm-kitty" ]]; then
+    case "$TERM" in
+        cygwin | xterm* | putty* | rxvt* | konsole* | ansi | mlterm* | alacritty | st* | foot* | contour*)
+            function set_window_title() {
+                print -Pn "\e]2;${USER}@${HOST}:${PWD/$HOME/~}\a"
+            }
+            autoload -Uz add-zsh-hook
+            add-zsh-hook precmd set_window_title
+            ;;
+    esac
+fi
+
+## ZSH PLUGINS ================================================================
+
+# Additional completions
+zsh-defer source "$CACHE_DIR/plugins/zsh-completions/zsh-completions.plugin.zsh"
+
+# Autosuggestions
+if [[ "$DISABLE_AUTOSUGGESTIONS" != true ]]; then
+    zsh-defer source "$CACHE_DIR/plugins/zsh-autosuggestions/zsh-autosuggestions.plugin.zsh"
+    ZSH_AUTOSUGGEST_MANUAL_REBIND=1
+fi
+
+# Syntax highlighting
+zsh-defer source "$CACHE_DIR/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.plugin.zsh"
+
+## AFTER CONFIG ===============================================================
+
+[[ -f "$ZSH_CONFIG_DIR/after.zsh" ]] && . "$ZSH_CONFIG_DIR/after.zsh"
